@@ -8,3 +8,4 @@ cache/[0-9a-f]*.fits
 .docker
 
 
+.vercel

@@ -53,7 +53,7 @@ export function getApiUrl(subpath: string): string {
     return `${envBase.replace(/\/$/, '')}${cleanSub}`;
   }
   // when running on github pages or hugging face space, call vercel backend
-  if (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname.includes('hf.space'))) {
+  if (typeof window !== 'undefined' && (window.location.hostname.includes('github.io') || window.location.hostname.includes('hf.space') || window.location.hostname.includes('huggingface.co'))) {
     return `${PRODUCTION_FALLBACK_API}${cleanSub}`;
   }
   return cleanSub;

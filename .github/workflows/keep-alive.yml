@@ -13,4 +13,4 @@ jobs:
       - name: Ping Backend Health Endpoints
         run: |
           curl -s -f "https://spherex-photometry.vercel.app/api/health" || true
-          curl -s "https://yancovert-spherex-photometry.hf.space" || true
+          curl -s -f "https://yancovert-spherex-photometry.static.hf.space" || true
