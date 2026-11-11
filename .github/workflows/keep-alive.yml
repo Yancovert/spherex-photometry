@@ -1,0 +1,16 @@
+name: 24/7 Backend Uptime Keep-Alive
+
+on:
+  schedule:
+    # Run every 15 minutes to prevent idle sleep
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  uptime-ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Endpoints
+        run: |
+          curl -s -f "https://spherex-photometry.vercel.app/api/health" || true
+          curl -s "https://yancovert-spherex-photometry.hf.space" || true

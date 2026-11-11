@@ -1,0 +1,19 @@
+{
+  "name": "sphere-x-port",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:srv": "npm --prefix srv run dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "concurrently -n srv,web -c blue,green \"npm run dev:srv\" \"npm run dev:web\"",
+    "build:srv": "npm --prefix srv run build",
+    "build:web": "npm --prefix web run build",
+    "build": "npm run build:srv && npm run build:web",
+    "start": "node srv/dist/main.js",
+    "test:srv": "npm --prefix srv test",
+    "verify": "npm run build && npm run test:srv"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

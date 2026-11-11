@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: spherex_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spherex
+      POSTGRES_PASSWORD: spherex_password
+      POSTGRES_DB: spherex_catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - .docker/db:/var/lib/postgresql/data

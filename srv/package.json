@@ -1,0 +1,25 @@
+{
+  "name": "srv",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "tsx test/photometry.test.ts",
+    "cli": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@types/pg": "^8.23.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

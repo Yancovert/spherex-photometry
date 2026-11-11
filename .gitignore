@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+*.log
+*.deb
+paper
+cache/[0-9a-f]*.fits
+.docker
+
+
