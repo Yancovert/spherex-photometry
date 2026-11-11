@@ -28,16 +28,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm --prefix web install
 
       - name: Build web frontend
         env:
           VITE_API_URL: https://spherex-photometry.vercel.app/api
-        run: npm run build:web
+        run: npm --prefix web run build
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v4

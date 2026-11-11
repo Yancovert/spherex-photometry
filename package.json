@@ -2,6 +2,11 @@
   "name": "sphere-x-port",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "workspaces": [
+    "srv",
+    "web"
+  ],
   "scripts": {
     "dev:srv": "npm --prefix srv run dev",
     "dev:web": "npm --prefix web run dev",

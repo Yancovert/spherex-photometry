@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { initDb } from './db.js';
 import { getRealCutout, getFullFrame, checkSphereXCoverage } from './irsa.js';
 import { queryIrsaTapExposures, ingestCutoutFromProvider } from './provider.js';
@@ -519,7 +520,9 @@ app.get(['/health', '/api/health'], (_req, res) => {
   });
 });
 
-if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+const isDirectRun = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
+
+if (isDirectRun && process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`SPHEREx scientific workstation backend running on http://localhost:${PORT}`);
   });
