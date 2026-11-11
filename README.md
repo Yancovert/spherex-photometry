@@ -1,8 +1,14 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Exulans Logo" width="180" />
+</p>
+
 # spherex-photometry (batch photometry tool v1.4)
 
 made this quick tool to extract aperture photometry and SEDs from SPHEREx Level 2 FITS images over the weekend.
 
 runs with an authentic early 2000s windows win32 interface (no modern web bloat, just the actual numbers, listview, and parameter controls).
+
+team logo designed by [Freund0815](https://freund.vercel.app/).
 
 ## live demos
 
