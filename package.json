@@ -18,6 +18,9 @@
     "test:srv": "npm --prefix srv test",
     "verify": "npm run build && npm run test:srv"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "devDependencies": {
     "concurrently": "^9.1.2"
   }

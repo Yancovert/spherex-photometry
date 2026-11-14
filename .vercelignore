@@ -1,5 +1,8 @@
 .docker
 cache
+srv/cache
+presentation
+paper
 node_modules
 srv/node_modules
 web/node_modules
