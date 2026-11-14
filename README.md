@@ -53,6 +53,10 @@ if you just want to run photometry from the terminal without opening the UI:
 npm run --prefix srv cli -- --file cache/level2_2025W46_2A_0001_1D1_spx_l2b-v20-2025-321.fits --targets "154.3488,61.5057" --format fits
 ```
 
+## disclosures
+
+- openrouter and free models were used to assist with code generation and frontend scaffolding during application development.
+
 ## notes
 
 - if you give it coordinates that fall outside the detector area of a specific exposure, it flags them as OFF_IMAGE with 0 flux (single SPHEREx pointings only cover ~3.5 x 3.5 deg). use folder mode across your cache to process targets across multiple pointings.
