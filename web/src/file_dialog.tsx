@@ -85,14 +85,14 @@ export const FileDialog: React.FC<FileDialogProps> = ({
                       onClick={() => setSelectedItem('cache')}
                       className={`cursor-default ${selectedItem === 'cache' ? 'bg-[#0a246a] text-white' : 'hover:bg-neutral-100 text-black'}`}
                     >
-                      <td className="px-2 py-1 font-mono font-bold">📁 cache/</td>
+                      <td className="px-2 py-1 font-mono font-bold">[DIR] cache/</td>
                       <td className="px-2 py-1 font-mono text-right">[Directory]</td>
                     </tr>
                     <tr
                       onClick={() => setSelectedItem('/home/yierke/mnt/extra/Sphere-X-port/cache')}
                       className={`cursor-default ${selectedItem.includes('Sphere-X-port') ? 'bg-[#0a246a] text-white' : 'hover:bg-neutral-100 text-black'}`}
                     >
-                      <td className="px-2 py-1 font-mono font-bold">📁 /home/yierke/mnt/extra/Sphere-X-port/cache</td>
+                      <td className="px-2 py-1 font-mono font-bold">[DIR] /home/yierke/mnt/extra/Sphere-X-port/cache</td>
                       <td className="px-2 py-1 font-mono text-right">[Mount]</td>
                     </tr>
                   </>

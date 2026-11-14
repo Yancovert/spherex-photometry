@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { parseMultiExtensionFits, extractCutout, SphereXImage } from './fits.js';
 import { getStoredCutout, storeCutout, saveObservation, findObservationsAt } from './db.js';
 
@@ -94,7 +95,106 @@ export async function checkSphereXCoverage(ra: number, dec: number, timeoutMs = 
   }
 }
 
-// fetch real fits cutout from irsa (spherex if covered, else precursor allwise)
+// extract fits from unwise tar.gz
+function extractFitsFromTarGz(tarGzBuf: Buffer): Buffer | null {
+  try {
+    const decompressed = zlib.gunzipSync(tarGzBuf);
+    let offset = 0;
+    while (offset + 512 <= decompressed.length) {
+      const name = decompressed.toString('ascii', offset, offset + 100).replace(/\0/g, '').trim();
+      if (!name) break;
+      const sizeStr = decompressed.toString('ascii', offset + 124, offset + 136).replace(/\0/g, '').trim();
+      const size = parseInt(sizeStr, 8);
+      offset += 512;
+      if (name.endsWith('.fits') && size > 0) {
+        return Buffer.from(decompressed.subarray(offset, offset + size));
+      }
+      const blocks = Math.ceil(size / 512);
+      offset += blocks * 512;
+    }
+  } catch (err) {
+    console.warn('unwise tar extraction failed', err);
+  }
+  return null;
+}
+
+// real astronomical multi-epoch coadds from unwise / neowise missions
+const UNWISE_EPOCH_VERSIONS = ['allwise', 'neo2', 'neo4', 'neo7'];
+
+export async function fetchUnwiseCutout(
+  ra: number,
+  dec: number,
+  fovDeg = 0.1,
+  epoch = 1,
+  band = 1
+): Promise<SphereXImage | null> {
+  const version = UNWISE_EPOCH_VERSIONS[Math.max(0, Math.min(epoch - 1, UNWISE_EPOCH_VERSIONS.length - 1))];
+  const wiseBand = band > 50 ? 2 : 1;
+  const pixelSize = Math.max(32, Math.min(256, Math.round((fovDeg * 3600) / 2.75)));
+
+  // handle vercel serverless readonly filesystem gracefully
+  const bundledDir = path.resolve(process.cwd(), 'cache', 'unwise');
+  const cacheDir = process.env.VERCEL
+    ? path.join('/tmp', 'cache', 'unwise')
+    : bundledDir;
+
+  try {
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true });
+    }
+  } catch {}
+
+  const filename = `unwise_${version}_${ra.toFixed(4)}_${dec.toFixed(4)}_b${wiseBand}_s${pixelSize}.fits`;
+  const diskPath = path.join(cacheDir, filename);
+  const bundledPath = path.join(bundledDir, filename);
+
+  for (const p of [diskPath, bundledPath]) {
+    if (fs.existsSync(p)) {
+      try {
+        const buf = fs.readFileSync(p);
+        return parseMultiExtensionFits(buf, true);
+      } catch {}
+    }
+  }
+
+  // check if any nearby cutout exists for this epoch version and band
+  for (const d of [cacheDir, bundledDir]) {
+    if (fs.existsSync(d)) {
+      try {
+        const candidates = fs.readdirSync(d).filter(f => f.startsWith(`unwise_${version}_`) && f.includes(`_b${wiseBand}_`));
+        for (const f of candidates) {
+          const m = f.match(/unwise_[^_]+_([-\d.]+)_([-\d.]+)_b/);
+          if (m) {
+            const fRa = parseFloat(m[1]);
+            const fDec = parseFloat(m[2]);
+            if (Math.hypot(fRa - ra, fDec - dec) < 0.05) {
+              const buf = fs.readFileSync(path.join(d, f));
+              return parseMultiExtensionFits(buf, true);
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  const url = `https://unwise.me/cutout_fits?version=${version}&ra=${ra}&dec=${dec}&size=${pixelSize}&bands=${wiseBand}&file_img_m=on`;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) return null;
+    const arrayBuf = await resp.arrayBuffer();
+    const fitsBuf = extractFitsFromTarGz(Buffer.from(arrayBuf));
+    if (!fitsBuf) return null;
+
+    try {
+      fs.writeFileSync(diskPath, fitsBuf);
+    } catch {}
+    return parseMultiExtensionFits(fitsBuf, true);
+  } catch (err) {
+    console.warn('unwise fetch failed', err);
+    return null;
+  }
+}
+
 export async function getRealCutout(
   ra: number,
   dec: number,
@@ -171,7 +271,6 @@ export async function getRealCutout(
         const buf = Buffer.from(arrayBuf);
         const parsed = parseMultiExtensionFits(buf, true);
 
-        // store in postgis
         await storeCutout(
           cacheKey, ra, dec, fovDeg, epoch, band,
           { ...parsed.imageHeader, wcs: parsed.wcs, BUNIT: parsed.bunit },
@@ -181,29 +280,19 @@ export async function getRealCutout(
         return { image: parsed, source: 'spherex', hasSphereX: true };
       }
     } catch (err) {
-      console.warn('spherex cutout fetch failed, falling back', err);
+      console.warn('spherex cutout fetch failed, falling back to unwise', err);
     }
   }
 
-  // precursor fallback: allwise mid-infrared at 3.4um (w1, epoch 1) / 4.6um (w2, epoch 2)
-  const wiseSurvey = epoch === 2 ? 'WISE+4.6' : 'WISE+3.4';
-  const skyviewUrl = `https://skyview.gsfc.nasa.gov/current/cgi/runquery.pl?survey=${wiseSurvey}&Position=${ra},${dec}&Size=${fovDeg}&Pixels=64&Return=FITS`;
-  try {
-    const wiseResp = await fetch(skyviewUrl, { signal: AbortSignal.timeout(12000) });
-    if (wiseResp.ok) {
-      const buf = Buffer.from(await wiseResp.arrayBuffer());
-      const parsed = parseMultiExtensionFits(buf, false);
-
-      await storeCutout(
-        cacheKey, ra, dec, fovDeg, epoch, band,
-        { ...parsed.imageHeader, wcs: parsed.wcs, BUNIT: parsed.bunit },
-        parsed.pixels, parsed.width, parsed.height, 'allwise'
-      );
-
-      return { image: parsed, source: 'allwise', hasSphereX: false };
-    }
-  } catch (err) {
-    // network timeout or offline
+  // real precursor multi-epoch fits cutouts from unwise / neowise
+  const unwiseImg = await fetchUnwiseCutout(ra, dec, fovDeg, epoch, band);
+  if (unwiseImg) {
+    await storeCutout(
+      cacheKey, ra, dec, fovDeg, epoch, band,
+      { ...unwiseImg.imageHeader, wcs: unwiseImg.wcs, BUNIT: unwiseImg.bunit },
+      unwiseImg.pixels, unwiseImg.width, unwiseImg.height, 'allwise'
+    );
+    return { image: unwiseImg, source: 'allwise', hasSphereX: false };
   }
 
   // blank cutout for unobserved coordinates with zero fake stars
@@ -241,10 +330,19 @@ function findCachePath(filename: string): string | null {
 }
 
 function getSaveCachePath(filename: string): string {
+  if (process.env.VERCEL) {
+    const tmp = path.join('/tmp', 'cache');
+    try {
+      if (!fs.existsSync(tmp)) fs.mkdirSync(tmp, { recursive: true });
+    } catch {}
+    return path.join(tmp, filename);
+  }
   const rootCache = path.resolve(process.cwd(), 'cache');
   const parentCache = path.resolve(process.cwd(), '../cache');
   if (fs.existsSync(parentCache)) return path.join(parentCache, filename);
-  if (!fs.existsSync(rootCache)) fs.mkdirSync(rootCache, { recursive: true });
+  try {
+    if (!fs.existsSync(rootCache)) fs.mkdirSync(rootCache, { recursive: true });
+  } catch {}
   return path.join(rootCache, filename);
 }
 

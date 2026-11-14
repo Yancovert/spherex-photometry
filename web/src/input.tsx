@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { resolveTarget } from './api';
 
-export type ColormapType = 'viridis' | 'inferno' | 'plasma' | 'turbo' | 'coolwarm' | 'grayscale' | 'inverted';
+export type ColormapType = 'viridis' | 'bipolar' | 'inferno' | 'plasma' | 'turbo' | 'coolwarm' | 'grayscale' | 'inverted';
 export type MathTransfer = 'asinh' | 'linear' | 'log' | 'sqrt';
 export type ViewerMode = 'single' | 'blink' | 'diff';
 
@@ -20,15 +20,22 @@ interface InputBarProps {
   onSavePng: () => void;
   onModeChange: (m: ViewerMode) => void;
   onFovChange: (fov: number) => void;
+  onToggleCatalog?: () => void;
+  catalogOpen?: boolean;
+  onToggleResources?: () => void;
+  onOpenSed?: () => void;
+  showReticle?: boolean;
+  onToggleReticle?: () => void;
 }
 
 const PRESETS = [
-  { id: 'field1', name: 'Field 1 (Ursa Major)', ra: 154.3488, dec: 61.5057 },
-  { id: 'field2', name: 'Field 2 (Emission Ring)', ra: 161.7300, dec: 45.3400 },
-  { id: 'barnard', name: "Barnard's Star (Dipole)", ra: 269.4520, dec: 4.6930 },
-  { id: 'wise0855', name: 'WISE 0855-0714 (Brown Dwarf)', ra: 133.7951, dec: -7.2451 },
+  { id: 'barnard', name: "Barnard's Star (10.3\"/yr Dipole)", ra: 269.4520, dec: 4.6930 },
+  { id: 'wise0855', name: 'WISE 0855-0714 (Cold Brown Dwarf)', ra: 133.7951, dec: -7.2451 },
+  { id: 'eps_indi', name: 'Epsilon Indi B (Binary Brown Dwarf)', ra: 330.8400, dec: -56.7858 },
   { id: 'rwaur', name: 'RW Aurigae (Variable)', ra: 76.9563, dec: 30.4014 },
-  { id: 'r_dra', name: 'R Draconis (Mira)', ra: 248.2838, dec: 66.7025 }
+  { id: 'r_dra', name: 'R Draconis (Mira Giant)', ra: 248.2838, dec: 66.7025 },
+  { id: 'field1', name: 'Field 1 (Ursa Major L2)', ra: 154.3488, dec: 61.5057 },
+  { id: 'field2', name: 'Field 2 (Emission Ring)', ra: 161.7300, dec: 45.3400 }
 ];
 
 export const InputBar: React.FC<InputBarProps> = ({
@@ -45,10 +52,16 @@ export const InputBar: React.FC<InputBarProps> = ({
   onToggleMeasure,
   onSavePng,
   onModeChange,
-  onFovChange
+  onFovChange,
+  onToggleCatalog,
+  catalogOpen,
+  onToggleResources,
+  onOpenSed,
+  showReticle,
+  onToggleReticle
 }) => {
-  const [searchType, setSearchType] = useState<string>('field1');
-  const [query, setQuery] = useState('154.3488, 61.5057');
+  const [searchType, setSearchType] = useState<string>('barnard');
+  const [query, setQuery] = useState('269.4520, 4.6930');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -121,105 +134,105 @@ export const InputBar: React.FC<InputBarProps> = ({
   };
 
   return (
-    <header className="bg-mono-950 border-b border-mono-800 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 font-mono text-xs select-none">
+    <div className="bg-[#d4d0c8] border-b border-[#808080] p-1.5 flex flex-wrap items-center justify-between gap-1.5 text-black font-sans text-[11px] select-none">
       {/* search and target selector */}
-      <form onSubmit={handleSearch} className="flex items-center gap-2">
-        <span className="font-bold text-white tracking-tight mr-1">SPHEREx</span>
+      <form onSubmit={handleSearch} className="flex items-center gap-1">
+        <span className="font-bold mr-0.5">Target:</span>
 
         <select
           value={searchType}
           onChange={handleTypeChange}
-          className="bg-mono-900 border border-mono-700 text-mono-200 hover:border-mono-500 px-2 py-1 rounded text-xs focus:outline-none"
+          className="win2k-input text-[11px] h-[22px] max-w-[210px]"
         >
           {PRESETS.map(p => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
-          <option value="coords">Coordinates</option>
-          <option value="name">Target by Name</option>
+          <option value="coords">Coordinates (RA, Dec)</option>
+          <option value="name">Target by Name (SIMBAD)</option>
         </select>
 
         <input
           type="text"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder={searchType === 'name' ? 'e.g. Barnard, WISE 0855, M101' : 'RA, Dec (e.g. 154.3488, 61.5057)'}
-          className="bg-mono-900 border border-mono-700 text-white placeholder-mono-600 px-2.5 py-1 text-xs rounded focus:outline-none focus:border-mono-400 w-52"
+          placeholder={searchType === 'name' ? 'e.g. Barnard, WISE 0855' : 'RA, Dec (e.g. 269.4520, 4.6930)'}
+          className="win2k-input text-[11px] h-[22px] w-48 px-1"
         />
 
         <button
           type="submit"
           disabled={loading}
-          className="bg-mono-200 hover:bg-white text-mono-950 px-2.5 py-1 rounded font-bold transition disabled:opacity-50 text-xs"
+          className="win2k-btn h-[22px] px-2.5 font-bold"
         >
-          {loading ? '...' : 'Search'}
+          {loading ? '...' : 'Go'}
         </button>
 
         {errorMsg && (
-          <span className="text-red-400 text-[11px] ml-1">{errorMsg}</span>
+          <span className="text-red-700 font-bold text-[10px] ml-1">{errorMsg}</span>
         )}
       </form>
 
-      {/* mode selectors */}
-      <div className="flex items-center border border-mono-700 rounded overflow-hidden">
+      {/* mode selectors (single, blink, diff) */}
+      <div className="flex items-center gap-1 border-l border-r border-[#808080] px-1.5">
+        <span className="text-neutral-700">Mode:</span>
         {(['single', 'blink', 'diff'] as const).map(m => (
           <button
             key={m}
             type="button"
             onClick={() => onModeChange(m)}
-            className={`px-2.5 py-0.5 text-xs capitalize transition ${
-              mode === m
-                ? 'bg-mono-200 text-mono-950 font-bold'
-                : 'text-mono-300 hover:text-white bg-mono-900'
+            className={`win2k-btn h-[22px] px-2 text-[11px] capitalize ${
+              mode === m ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
             }`}
           >
-            {m === 'diff' ? 'Diff' : m}
+            {m === 'diff' ? 'Signed Diff' : m === 'blink' ? 'Blink' : 'Single'}
           </button>
         ))}
       </div>
 
       {/* display and analysis controls */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 text-mono-400">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1">
           <span>FoV:</span>
           <select
             value={fov.toString()}
             onChange={e => onFovChange(parseFloat(e.target.value))}
-            className="bg-mono-900 border border-mono-700 text-mono-200 px-1.5 py-0.5 rounded text-xs focus:outline-none"
+            className="win2k-input text-[11px] h-[22px]"
           >
-            <option value="3.5">Full Array (3.5°)</option>
-            <option value="1">1.00° (60')</option>
-            <option value="0.5">0.50° (30')</option>
-            <option value="0.25">0.25° (15')</option>
-            <option value="0.1">0.10° (6')</option>
-            <option value="0.05">0.05° (3')</option>
+            <option value="3.5">Full (3.5°)</option>
+            <option value="1">1.00°</option>
+            <option value="0.5">0.50°</option>
+            <option value="0.25">0.25°</option>
+            <option value="0.1">0.10°</option>
+            <option value="0.05">0.05°</option>
           </select>
         </div>
 
-        <div className="flex items-center gap-1.5 text-mono-400">
+        <div className="flex items-center gap-1">
           <span>Map:</span>
           <select
             value={colormap}
             onChange={e => onColormapChange(e.target.value as ColormapType)}
-            className="bg-mono-900 border border-mono-700 text-mono-200 px-1.5 py-0.5 rounded text-xs focus:outline-none capitalize"
+            className="win2k-input text-[11px] h-[22px] capitalize"
           >
             <option value="viridis">Viridis</option>
+            <option value="bipolar">Bipolar (Dark Diff)</option>
             <option value="inferno">Inferno</option>
             <option value="plasma">Plasma</option>
             <option value="turbo">Turbo</option>
-            <option value="coolwarm">Coolwarm</option>
+            <option value="coolwarm">Coolwarm (Light)</option>
             <option value="grayscale">Grayscale</option>
             <option value="inverted">Inverted</option>
           </select>
         </div>
 
-        <div className="flex items-center gap-1.5 text-mono-400">
+        <div className="flex items-center gap-1">
           <span>Scale:</span>
           <select
             value={transfer}
             onChange={e => onTransferChange(e.target.value as MathTransfer)}
-            className="bg-mono-900 border border-mono-700 text-mono-200 px-1.5 py-0.5 rounded text-xs focus:outline-none uppercase"
+            className="win2k-input text-[11px] h-[22px] uppercase"
           >
             <option value="asinh">Asinh</option>
             <option value="linear">Linear</option>
@@ -231,20 +244,31 @@ export const InputBar: React.FC<InputBarProps> = ({
         <button
           type="button"
           onClick={onToggleMeasure}
-          className={`border px-2 py-0.5 rounded transition text-xs ${
-            measureMode
-              ? 'border-white bg-mono-200 text-mono-950 font-bold'
-              : 'border-mono-700 hover:border-mono-500 text-mono-300'
+          className={`win2k-btn h-[22px] px-2 text-[11px] ${
+            measureMode ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
           }`}
           title="Toggle circular aperture photometry with sky annulus"
         >
-          {measureMode ? 'Measure: On' : 'Measure'}
+          {measureMode ? 'Aperture: ON' : 'Aperture'}
         </button>
+
+        {onToggleReticle && (
+          <button
+            type="button"
+            onClick={onToggleReticle}
+            className={`win2k-btn h-[22px] px-2 text-[11px] ${
+              showReticle ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
+            }`}
+            title="Toggle WiseView-style target crosshair/reticle"
+          >
+            {showReticle ? 'Reticle: ON' : 'Reticle'}
+          </button>
+        )}
 
         <button
           type="button"
           onClick={onSavePng}
-          className="border border-mono-700 hover:border-mono-500 text-mono-300 hover:text-white px-2 py-0.5 rounded transition text-xs"
+          className="win2k-btn h-[22px] px-2 text-[11px]"
           title="Save current canvas as PNG"
         >
           Save PNG
@@ -253,12 +277,47 @@ export const InputBar: React.FC<InputBarProps> = ({
         <button
           type="button"
           onClick={handleDownloadFits}
-          className="border border-mono-700 hover:border-mono-500 text-mono-300 hover:text-white px-2 py-0.5 rounded transition text-xs"
+          className="win2k-btn h-[22px] px-2 text-[11px]"
           title="Download authentic Level 2 FITS file"
         >
-          Export FITS
+          FITS
         </button>
+
+        {onOpenSed && (
+          <button
+            type="button"
+            onClick={onOpenSed}
+            className="win2k-btn h-[22px] px-2 text-[11px] font-bold"
+            title="Open on-the-fly 102-channel NIR spectrum (SED) with molecular ice diagnostic markers"
+          >
+            SED Plot
+          </button>
+        )}
+
+        {onToggleCatalog && (
+          <button
+            type="button"
+            onClick={onToggleCatalog}
+            className={`win2k-btn h-[22px] px-2 text-[11px] ${
+              catalogOpen ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
+            }`}
+            title="Toggle Gaia DR3 and CSA NEOSSat cross-match catalog drawer"
+          >
+            Catalogs {catalogOpen ? '[X]' : ''}
+          </button>
+        )}
+
+        {onToggleResources && (
+          <button
+            type="button"
+            onClick={onToggleResources}
+            className="win2k-btn h-[22px] px-2 text-[11px]"
+            title="Resources & Reference Guides"
+          >
+            Help / Guide
+          </button>
+        )}
       </div>
-    </header>
+    </div>
   );
 };

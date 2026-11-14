@@ -132,6 +132,16 @@ export async function storeCutout(
   source = 'spherex'
 ): Promise<void> {
   if (!isDbConnected) return;
+  // skip caching empty or invalid frames
+  let hasValid = false;
+  for (let i = 0; i < Math.min(pixels.length, 1000); i++) {
+    if (pixels[i] !== 0 && !isNaN(pixels[i])) {
+      hasValid = true;
+      break;
+    }
+  }
+  if (!hasValid) return;
+
   const buf = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
   await pool.query(`
     INSERT INTO spherex_cutouts (cache_key, ra, dec, fov_deg, epoch, band, header, pixels_raw, width, height, source)

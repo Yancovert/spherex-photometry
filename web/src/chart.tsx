@@ -59,11 +59,11 @@ export const SpectralModal: React.FC<SpectralModalProps> = ({ data, onClose }) =
       {
         label: 'Flux (MJy/sr)',
         data: data.points.map(p => p.flux),
-        borderColor: '#38bdf8',
-        backgroundColor: '#38bdf8',
-        borderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
+        borderColor: '#0a246a',
+        backgroundColor: '#0a246a',
+        borderWidth: 1.8,
+        pointRadius: 3,
+        pointHoverRadius: 5,
         tension: 0
       }
     ]
@@ -83,69 +83,98 @@ export const SpectralModal: React.FC<SpectralModalProps> = ({ data, onClose }) =
             const pt = data.points[idx];
             return `Wavelength: ${pt?.wavelength} µm (Band ${pt?.band}, Array ${pt?.array})`;
           },
-          label: (item: any) => `Measured Flux: ${item.raw} MJy/sr`
+          label: (item: any) => `Flux: ${item.raw} MJy/sr`
         }
       }
     },
     scales: {
       x: {
-        grid: { color: '#1a1a1a' },
+        grid: { color: '#e0e0e0' },
         ticks: {
-          color: '#888888',
-          font: { family: 'monospace', size: 10 }
+          color: '#000000',
+          font: { family: 'Tahoma, sans-serif', size: 9 }
         }
       },
       y: {
-        grid: { color: '#1a1a1a' },
+        grid: { color: '#e0e0e0' },
         ticks: {
-          color: '#888888',
-          font: { family: 'monospace', size: 10 }
+          color: '#000000',
+          font: { family: 'Tahoma, sans-serif', size: 9 }
         }
       }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono select-none">
-      <div className="bg-mono-950 border border-mono-700 w-full max-w-2xl overflow-hidden flex flex-col text-xs shadow-2xl rounded">
-        <div className="px-3 py-2 border-b border-mono-800 flex items-center justify-between text-mono-300">
-          <div>
-            Spectrum: {data.target || 'Selected Coordinate'} (RA {data.ra.toFixed(4)}°, DEC {data.dec.toFixed(4)}°)
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 font-sans select-none text-[11px]">
+      <div className="win2k-window w-full max-w-2xl flex flex-col shadow-2xl">
+        {/* titlebar */}
+        <div className="win2k-titlebar flex items-center justify-between">
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <svg width="14" height="14" viewBox="0 0 16 16" className="shrink-0">
+              <rect width="16" height="16" fill="#000080" />
+              <polyline points="2,12 6,4 10,9 14,3" fill="none" stroke="#ffff00" strokeWidth="2" />
+            </svg>
+            <span className="truncate">
+              Spectral Energy Distribution (SED) - [RA {data.ra.toFixed(4)}°, Dec {data.dec.toFixed(4)}°]
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            {data.points.length > 0 && (
-              <button
-                onClick={handleExportCsv}
-                className="border border-mono-700 hover:border-mono-400 text-mono-300 hover:text-white px-2 py-0.5 rounded text-[11px] transition"
-              >
-                Export CSV
-              </button>
-            )}
+          <div className="flex items-center">
             <button
+              type="button"
               onClick={onClose}
-              className="border border-mono-700 hover:border-mono-400 text-mono-400 hover:text-white px-2 py-0.5 rounded text-[11px] transition"
+              className="win2k-title-btn font-bold cursor-pointer"
+              title="Close [Esc]"
             >
-              Close [Esc]
+              ×
             </button>
           </div>
         </div>
 
-        <div className="p-3 flex flex-col gap-2">
-          {data.points.length > 0 ? (
-            <>
-              <div className="h-64 w-full bg-mono-900 border border-mono-800 p-2 rounded">
+        {/* dialog interior */}
+        <div className="p-2 bg-[#d4d0c8] space-y-2 text-black">
+          <fieldset className="win2k-groupbox">
+            <legend>Linear Variable Filter (102 Spectral Channels)</legend>
+            <div className="p-1 space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-neutral-800">
+                <span>Target: <strong>{data.target || 'Selected Target'}</strong></span>
+                <span>Epoch {data.epoch} | {data.points.length} NIR Bands</span>
+              </div>
+
+              <div className="h-64 w-full win2k-sunken p-1 bg-white">
                 <Line data={chartData} options={chartOptions} />
               </div>
-              <div className="text-[11px] text-mono-400 flex justify-between px-1">
-                <span>Authentic Level 2 measurement</span>
-                <span>{data.points.length} spectral sample(s)</span>
+
+              {/* diagnostic molecular ice markers */}
+              <div className="pt-1 flex flex-wrap items-center gap-3 text-[10px] text-neutral-700">
+                <span className="font-bold">Ice Diagnostics:</span>
+                <span>H2O Ice (3.05 µm)</span>
+                <span>CH4 Ice (3.30 µm)</span>
+                <span>CO2 Ice (4.27 µm)</span>
+                <span>CO Ice (4.67 µm)</span>
               </div>
-            </>
-          ) : (
-            <div className="h-40 flex items-center justify-center text-mono-500 border border-mono-800 rounded">
-              No SPHEREx survey coverage or observation data at these coordinates.
             </div>
-          )}
+          </fieldset>
+
+          {/* dialog action buttons */}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            {data.points.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="win2k-btn h-[23px] px-3 font-bold"
+              >
+                Export CSV...
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="win2k-btn h-[23px] px-4 font-bold"
+            >
+              OK
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,35 @@
 // api client for spherex backend proxy and batch aperture photometry engine
 
+export interface GaiaSource {
+  sourceId: string;
+  ra: number;
+  dec: number;
+  photGMeanMag: number | null;
+  pmra: number | null;
+  pmdec: number | null;
+  parallax: number | null;
+  ruwe?: number | null;
+}
+
+export interface NeossatTrack {
+  id: string;
+  targetName: string;
+  ra: number;
+  dec: number;
+  observationDate: string;
+  cadcUrl: string;
+  type: string;
+}
+
+export interface ChallengeResource {
+  id: string;
+  title: string;
+  provider: string;
+  url: string;
+  description: string;
+  tags: string[];
+}
+
 export interface TargetInfo {
   name: string;
   ra: number;
@@ -174,6 +204,53 @@ export async function ingestProviderCutout(
     body: JSON.stringify({ ra, dec, fov, uri, epoch, band })
   });
   if (!res.ok) throw new Error('failed ingesting cutout');
+  return res.json();
+}
+
+export async function fetchGaiaDr3(
+  ra: number,
+  dec: number,
+  radiusDeg = 0.2
+): Promise<{ count: number; sources: GaiaSource[] }> {
+  const res = await fetch(getApiUrl(`/api/catalogs/gaia?ra=${ra}&dec=${dec}&radius=${radiusDeg}`));
+  if (!res.ok) throw new Error('failed querying Gaia DR3');
+  const data = await res.json();
+  const sources: GaiaSource[] = (data.sources || []).map((s: any) => ({
+    sourceId: String(s.sourceId ?? s.source_id ?? ''),
+    ra: Number(s.ra),
+    dec: Number(s.dec),
+    photGMeanMag: s.gMag ?? s.photGMeanMag ?? s.phot_g_mean_mag ?? null,
+    pmra: s.pmRa ?? s.pmra ?? null,
+    pmdec: s.pmDec ?? s.pmdec ?? null,
+    parallax: s.parallax ?? null,
+    ruwe: s.ruwe ?? null
+  }));
+  return { count: sources.length, sources };
+}
+
+export async function fetchNeossat(
+  ra: number,
+  dec: number,
+  radiusDeg = 0.5
+): Promise<{ count: number; tracks: NeossatTrack[]; info: any }> {
+  const res = await fetch(getApiUrl(`/api/catalogs/neossat?ra=${ra}&dec=${dec}&radius=${radiusDeg}`));
+  if (!res.ok) throw new Error('failed querying CSA NEOSSat');
+  const data = await res.json();
+  const tracks: NeossatTrack[] = (data.matches || []).map((m: any, idx: number) => ({
+    id: m.obsId || `track-${idx}`,
+    targetName: m.target || 'NEOSSat Object',
+    ra: Number(m.ra),
+    dec: Number(m.dec),
+    observationDate: m.obsId ? m.obsId.replace('NEOSSAT_', '') : '2025/2026',
+    cadcUrl: m.datasetUrl || 'https://data.asc-csa.gc.ca/dataset/neossat',
+    type: m.target?.includes('Debris') ? 'Space Debris' : 'Asteroid'
+  }));
+  return { count: tracks.length, tracks, info: data };
+}
+
+export async function fetchChallengeResources(): Promise<{ resources: ChallengeResource[] }> {
+  const res = await fetch(getApiUrl('/api/resources'));
+  if (!res.ok) throw new Error('failed fetching challenge resources');
   return res.json();
 }
 

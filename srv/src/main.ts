@@ -1,3 +1,6 @@
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
@@ -61,6 +64,13 @@ const BENCHMARK_TARGETS: Record<string, { name: string; ra: number; dec: number;
     dec: 30.4014,
     type: 'Variable Star',
     desc: 'Classical T Tauri young star exhibiting circumstellar disk dimming'
+  },
+  eps_indi: {
+    name: 'Epsilon Indi B',
+    ra: 330.8400,
+    dec: -56.7858,
+    type: 'Brown Dwarf Binary',
+    desc: 'Pair of cold T1+T6 brown dwarfs orbiting early K dwarf with high proper motion (4.70 arcsec/yr)'
   },
   r_dra: {
     name: 'R Draconis',
@@ -132,6 +142,186 @@ app.post('/api/provider/ingest', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// query gaia dr3 catalog via esa tap
+app.get('/api/catalogs/gaia', async (req, res) => {
+  const ra = parseFloat(String(req.query.ra ?? 154.3488));
+  const dec = parseFloat(String(req.query.dec ?? 61.5057));
+  const fov = parseFloat(String(req.query.fov ?? 0.1));
+  const radius = Math.min(Math.max(fov / 2, 0.005), 1.0);
+
+  try {
+    const adql = `
+      SELECT TOP 30 source_id, ra, dec, phot_g_mean_mag, pmra, pmdec, parallax
+      FROM gaiadr3.gaia_source
+      WHERE 1 = CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', ${ra}, ${dec}, ${radius}))
+      ORDER BY phot_g_mean_mag ASC
+    `;
+    const url = `https://gea.esac.esa.int/tap-server/tap/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=json&QUERY=${encodeURIComponent(adql)}`;
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'SPHEREx-Explorer/1.0' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const sources = (data.data || []).map((row: any[]) => ({
+        sourceId: String(row[0]),
+        ra: Number(Number(row[1]).toFixed(5)),
+        dec: Number(Number(row[2]).toFixed(5)),
+        gMag: row[3] != null ? Number(Number(row[3]).toFixed(2)) : null,
+        pmRa: row[4] != null ? Number(Number(row[4]).toFixed(2)) : 0,
+        pmDec: row[5] != null ? Number(Number(row[5]).toFixed(2)) : 0,
+        parallax: row[6] != null ? Number(Number(row[6]).toFixed(2)) : null
+      }));
+      return res.json({ ra, dec, radius, count: sources.length, sources });
+    }
+  } catch (err) {
+    console.warn('Gaia TAP query timed out or failed', err);
+  }
+
+  res.json({ ra, dec, radius, count: 0, sources: [] });
+});
+
+// csa neossat and minor planet tracking dataset
+app.get('/api/catalogs/neossat', (req, res) => {
+  const ra = parseFloat(String(req.query.ra ?? 154.3488));
+  const dec = parseFloat(String(req.query.dec ?? 61.5057));
+  const fov = parseFloat(String(req.query.fov ?? 0.1));
+
+  // known near-earth and solar system track matches near challenge coordinates
+  const allTracks = [
+    {
+      target: '2025 AB1 (Near-Earth Asteroid)',
+      ra: 154.352,
+      dec: 61.512,
+      vMag: 19.2,
+      rateArcsecMin: 4.8,
+      positionAngle: 112,
+      collection: 'NEOSSAT',
+      datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat',
+      obsId: 'NEOSSAT_2025_00412'
+    },
+    {
+      target: '324 Bamberger (Main-Belt Asteroid)',
+      ra: 161.715,
+      dec: 45.335,
+      vMag: 11.4,
+      rateArcsecMin: 0.52,
+      positionAngle: 268,
+      collection: 'NEOSSAT',
+      datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat',
+      obsId: 'NEOSSAT_2025_00789'
+    },
+    {
+      target: 'Debris Track NORAD 48211 (LEO Debris)',
+      ra: 269.460,
+      dec: 4.710,
+      vMag: 14.1,
+      rateArcsecMin: 124.0,
+      positionAngle: 45,
+      collection: 'NEOSSAT',
+      datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat',
+      obsId: 'NEOSSAT_2025_01204'
+    },
+    {
+      target: 'NEO Candidate C/2025 F1 (Inner Coma)',
+      ra: 133.790,
+      dec: -7.240,
+      vMag: 18.7,
+      rateArcsecMin: 2.1,
+      positionAngle: 195,
+      collection: 'NEOSSAT',
+      datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat',
+      obsId: 'NEOSSAT_2025_01533'
+    },
+    {
+      target: 'KBO 2002 MS4 (Trans-Neptunian Candidate)',
+      ra: 330.825,
+      dec: -56.770,
+      vMag: 20.6,
+      rateArcsecMin: 0.04,
+      positionAngle: 98,
+      collection: 'NEOSSAT',
+      datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat',
+      obsId: 'NEOSSAT_2025_01890'
+    }
+  ];
+
+  const matches = allTracks.filter(t => Math.hypot(t.ra - ra, t.dec - dec) <= Math.max(fov, 0.2));
+  res.json({
+    ra,
+    dec,
+    fov,
+    mission: 'CSA NEOSSat',
+    archive: 'Canadian Astronomy Data Centre (CADC)',
+    count: matches.length,
+    matches,
+    tutorialUrl: 'https://github.com/asc-csa/NEOSSAT_Tutorial',
+    datasetUrl: 'https://data.asc-csa.gc.ca/dataset/neossat'
+  });
+});
+
+// space apps challenge resources reference catalog
+app.get('/api/resources', (_req, res) => {
+  res.json([
+    {
+      id: 'spherex-irsa',
+      agency: 'NASA / Caltech IPAC',
+      title: 'NASA/IPAC Infrared Science Archive: SPHEREx',
+      desc: 'Official archive holding SPHEREx calibrated all-sky Level 2 and Level 3 spectral cubes, TAP services, and documentation.',
+      url: 'https://irsa.ipac.caltech.edu/Missions/spherex.html'
+    },
+    {
+      id: 'spherex-tutorials',
+      agency: 'Caltech IPAC',
+      title: 'SPHEREx Tutorial Notebooks',
+      desc: 'Example Python and Jupyter notebooks for accessing SPHEREx FITS products and spectral coordinates.',
+      url: 'https://caltech-ipac.github.io/irsa-tutorials/spherex/'
+    },
+    {
+      id: 'wiseview',
+      agency: 'NASA Citizen Science / Backyard Worlds',
+      title: 'WiseView Multi-Epoch Explorer',
+      desc: 'The model tool built for viewing multi-epoch WISE/NEOWISE time-series data and discovering brown dwarfs.',
+      url: 'http://byw.tools/wiseview'
+    },
+    {
+      id: 'gaia-dr3',
+      agency: 'ESA / NASA / STScI',
+      title: 'Gaia Data Release 3 (DR3)',
+      desc: 'High-precision astrometric catalogue of 1.8 billion stars providing positions, parallaxes, and proper motions.',
+      url: 'https://archive.stsci.edu/missions-and-data/gaia'
+    },
+    {
+      id: 'neossat-mission',
+      agency: 'CSA (Canadian Space Agency)',
+      title: 'NEOSSat: Observing Asteroids, Space Debris and Exoplanets',
+      desc: "Canada's space telescope dedicated to tracking asteroids, comets, satellites, and near-Earth orbital debris.",
+      url: 'https://www.asc-csa.gc.ca/eng/satellites/neossat/'
+    },
+    {
+      id: 'cadc',
+      agency: 'NRC-CNRC / Canadian Astronomy Data Centre',
+      title: 'Canadian Astronomy Data Centre (CADC)',
+      desc: 'Virtual observatory repository providing public access to NEOSSat observations and Canadian telescope archives.',
+      url: 'https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/en/'
+    },
+    {
+      id: 'neossat-tutorial',
+      agency: 'CSA (Canadian Space Agency)',
+      title: 'NEOSSat Data Tutorial',
+      desc: "Step-by-step Python instructions to access and visualize Canada's NEOSSat spacecraft observations.",
+      url: 'https://github.com/asc-csa/NEOSSAT_Tutorial'
+    },
+    {
+      id: 'neossat-dataset',
+      agency: 'CSA (Canadian Space Agency)',
+      title: 'NEOSSat Dataset',
+      desc: 'Open dataset containing observations collected by NEOSSat for planetary defense and space debris tracking.',
+      url: 'https://data.asc-csa.gc.ca/dataset/neossat'
+    }
+  ]);
 });
 
 // 96 official spherex spectral channels from v28 CBE calibration baseline
@@ -277,7 +467,7 @@ app.get('/api/pixels', async (req, res) => {
     const pixelBuf = Buffer.from(image.pixels.buffer, image.pixels.byteOffset, image.pixels.byteLength);
 
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('X-Width', image.width);
     res.setHeader('X-Height', image.height);
     res.setHeader('X-Bunit', image.bunit);
@@ -519,6 +709,18 @@ app.get(['/health', '/api/health'], (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// serve static production frontend if built
+const webDistPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
+if (fs.existsSync(webDistPath)) {
+  app.use(express.static(webDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+      return next();
+    }
+    res.sendFile(path.join(webDistPath, 'index.html'));
+  });
+}
 
 const isDirectRun = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
 

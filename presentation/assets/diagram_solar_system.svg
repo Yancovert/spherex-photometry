@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080d1e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="sunGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffedd5"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+  
+  <!-- Grid overlay -->
+  <g stroke="#1e293b" stroke-width="1" stroke-opacity="0.4">
+    <line x1="0" y1="0" x2="0" y2="900"/><line x1="80" y1="0" x2="80" y2="900"/><line x1="160" y1="0" x2="160" y2="900"/><line x1="240" y1="0" x2="240" y2="900"/><line x1="320" y1="0" x2="320" y2="900"/><line x1="400" y1="0" x2="400" y2="900"/><line x1="480" y1="0" x2="480" y2="900"/><line x1="560" y1="0" x2="560" y2="900"/><line x1="640" y1="0" x2="640" y2="900"/><line x1="720" y1="0" x2="720" y2="900"/><line x1="800" y1="0" x2="800" y2="900"/><line x1="880" y1="0" x2="880" y2="900"/><line x1="960" y1="0" x2="960" y2="900"/><line x1="1040" y1="0" x2="1040" y2="900"/><line x1="1120" y1="0" x2="1120" y2="900"/><line x1="1200" y1="0" x2="1200" y2="900"/><line x1="1280" y1="0" x2="1280" y2="900"/><line x1="1360" y1="0" x2="1360" y2="900"/><line x1="1440" y1="0" x2="1440" y2="900"/><line x1="1520" y1="0" x2="1520" y2="900"/>
+    <line x1="0" y1="0" x2="1600" y2="0"/><line x1="0" y1="80" x2="1600" y2="80"/><line x1="0" y1="160" x2="1600" y2="160"/><line x1="0" y1="240" x2="1600" y2="240"/><line x1="0" y1="320" x2="1600" y2="320"/><line x1="0" y1="400" x2="1600" y2="400"/><line x1="0" y1="480" x2="1600" y2="480"/><line x1="0" y1="560" x2="1600" y2="560"/><line x1="0" y1="640" x2="1600" y2="640"/><line x1="0" y1="720" x2="1600" y2="720"/><line x1="0" y1="800" x2="1600" y2="800"/><line x1="0" y1="880" x2="1600" y2="880"/>
+  </g>
+
+  <!-- Header -->
+  <text x="80" y="80" fill="#38bdf8" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="700" letter-spacing="2">CELESTIAL MECHANICS &amp; DETECTION THRESHOLDS</text>
+  <text x="80" y="125" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="800">Outer Solar System Kinematics at 400 AU</text>
+
+  <!-- Central Axis / Distance Axis -->
+  <line x1="120" y1="360" x2="1480" y2="360" stroke="#334155" stroke-width="3" stroke-dasharray="6,6"/>
+
+  <!-- Sun -->
+  <circle cx="160" cy="360" r="42" fill="url(#sunGrad)" filter="url(#glow)"/>
+  <text x="160" y="435" fill="#fde68a" font-family="system-ui, sans-serif" font-size="16" font-weight="700" text-anchor="middle">Sun</text>
+  <text x="160" y="458" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">0 AU</text>
+
+  <!-- Earth -->
+  <circle cx="340" cy="360" r="10" fill="#38bdf8"/>
+  <text x="340" y="405" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="15" font-weight="700" text-anchor="middle">Earth</text>
+  <text x="340" y="426" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">1 AU · 29.8 km/s</text>
+
+  <!-- Jupiter -->
+  <circle cx="560" cy="360" r="18" fill="#fb923c"/>
+  <text x="560" y="405" fill="#fb923c" font-family="system-ui, sans-serif" font-size="15" font-weight="700" text-anchor="middle">Jupiter</text>
+  <text x="560" y="426" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">5.2 AU · 13.1 km/s</text>
+
+  <!-- Neptune -->
+  <circle cx="820" cy="360" r="14" fill="#818cf8"/>
+  <text x="820" y="405" fill="#818cf8" font-family="system-ui, sans-serif" font-size="15" font-weight="700" text-anchor="middle">Neptune</text>
+  <text x="820" y="426" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">30 AU · 5.4 km/s</text>
+
+  <!-- Kuiper Belt boundary indicator -->
+  <line x1="940" y1="280" x2="940" y2="440" stroke="#475569" stroke-width="2" stroke-dasharray="4,4"/>
+  <text x="940" y="265" fill="#64748b" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">Kuiper Belt (30-50 AU)</text>
+
+  <!-- Planet X Candidate -->
+  <circle cx="1300" cy="360" r="16" fill="#f43f5e" filter="url(#glow)"/>
+  <text x="1300" y="405" fill="#f43f5e" font-family="system-ui, sans-serif" font-size="16" font-weight="800" text-anchor="middle">Planet X / eTNO</text>
+  <text x="1300" y="428" fill="#fda4af" font-family="system-ui, sans-serif" font-size="13" text-anchor="middle">400 AU · 1.49 km/s</text>
+
+  <!-- Proper Motion Arrow -->
+  <path d="M 1300,320 L 1360,320" stroke="#f43f5e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1330" y="305" fill="#f43f5e" font-family="system-ui, sans-serif" font-size="13" font-weight="700" text-anchor="middle">μ = 0.77"/yr</text>
+
+  <!-- CARDS SECTION -->
+
+  <!-- Card 1: Sub-pixel Motion -->
+  <rect x="80" y="520" width="440" height="310" rx="12" fill="#1e293b" fill-opacity="0.7" stroke="#334155" stroke-width="1.5"/>
+  <text x="110" y="565" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="18" font-weight="700">1. Sub-Pixel Shift Challenge</text>
+  
+  <text x="110" y="605" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="15">6-month proper motion:</text>
+  <text x="110" y="635" fill="#f8fafc" font-family="monospace" font-size="20" font-weight="700">Δθ = μ · Δt = 0.385 arcsec</text>
+
+  <text x="110" y="675" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="15">SPHEREx detector pixel scale:</text>
+  <text x="110" y="705" fill="#38bdf8" font-family="monospace" font-size="20" font-weight="700">s = 6.20 arcsec / pixel</text>
+
+  <rect x="110" y="730" width="380" height="70" rx="8" fill="#0f172a" stroke="#0284c7" stroke-width="1"/>
+  <text x="130" y="758" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13">Displacement per survey epoch:</text>
+  <text x="130" y="785" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="16" font-weight="800">Shift = 0.062 pixels (&lt; 1/16th of a pixel)</text>
+
+  <!-- Card 2: Inverse 4th Power Law -->
+  <rect x="580" y="520" width="440" height="310" rx="12" fill="#1e293b" fill-opacity="0.7" stroke="#334155" stroke-width="1.5"/>
+  <text x="610" y="565" fill="#fb923c" font-family="system-ui, sans-serif" font-size="18" font-weight="700">2. Extreme Flux Attenuation</text>
+
+  <text x="610" y="605" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="15">Reflected optical sunlight:</text>
+  <text x="610" y="635" fill="#f8fafc" font-family="monospace" font-size="20" font-weight="700">F_refl ∝ L_sun · R_p² / d⁴</text>
+
+  <text x="610" y="675" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="14">At 400 AU, reflected sunlight drops by:</text>
+  <text x="610" y="705" fill="#fb923c" font-family="monospace" font-size="20" font-weight="700">(400)⁴ ≈ 2.56 × 10¹⁰</text>
+
+  <rect x="610" y="730" width="380" height="70" rx="8" fill="#0f172a" stroke="#ea580c" stroke-width="1"/>
+  <text x="630" y="758" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13">Equilibrium temperature:</text>
+  <text x="630" y="785" fill="#fb923c" font-family="system-ui, sans-serif" font-size="16" font-weight="800">T_eq ≈ 279 K / √d ≈ 14 K (requires IR)</text>
+
+  <!-- Card 3: SPHEREx Solution -->
+  <rect x="1080" y="520" width="440" height="310" rx="12" fill="#1e293b" fill-opacity="0.7" stroke="#334155" stroke-width="1.5"/>
+  <text x="1110" y="565" fill="#4ade80" font-family="system-ui, sans-serif" font-size="18" font-weight="700">3. The SPHEREx Multi-Epoch Key</text>
+
+  <text x="1110" y="605" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="15">Thermal emission drops only as 1/d²:</text>
+  <text x="1110" y="635" fill="#f8fafc" font-family="monospace" font-size="20" font-weight="700">F_thermal ∝ B_λ(T) · R_p² / d²</text>
+
+  <text x="1110" y="675" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="14">SPHEREx 102 channels (0.75 - 5.0 μm):</text>
+  <text x="1110" y="705" fill="#4ade80" font-family="monospace" font-size="20" font-weight="700">Bands 4-6 capture thermal peak</text>
+
+  <rect x="1110" y="730" width="380" height="70" rx="8" fill="#0f172a" stroke="#16a34a" stroke-width="1"/>
+  <text x="1130" y="758" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="13">Detection method:</text>
+  <text x="1130" y="785" fill="#4ade80" font-family="system-ui, sans-serif" font-size="16" font-weight="800">Difference Imaging reveals Dipole</text>
+</svg>

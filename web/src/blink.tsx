@@ -32,38 +32,48 @@ export const BlinkBar: React.FC<BlinkProps> = ({
   onStretchChange
 }) => {
   return (
-    <div className="bg-mono-950 border-t border-mono-800 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-      <div className="flex items-center gap-1.5">
+    <div className="bg-[#d4d0c8] border-t border-[#808080] p-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-sans text-black select-none">
+      {/* epoch stepper and blink button */}
+      <div className="flex items-center gap-1">
+        <span className="font-bold mr-1">Epoch:</span>
+
         <button
+          type="button"
           onClick={() => onEpochChange(epoch > 1 ? epoch - 1 : maxEpochs)}
-          className="border border-mono-800 hover:border-mono-600 px-2 py-0.5 rounded text-mono-300 hover:text-white transition"
+          className="win2k-btn h-[22px] px-2 text-[11px]"
+          title="Previous Epoch"
         >
-          Prev
+          &lt; Prev
         </button>
 
         <button
+          type="button"
           onClick={onTogglePlay}
-          className={`px-3 py-0.5 rounded font-bold transition ${
-            playing ? 'bg-mono-100 text-mono-950' : 'border border-mono-700 text-mono-200 hover:border-mono-400'
+          className={`win2k-btn h-[22px] px-3 font-bold text-[11px] ${
+            playing ? '!bg-[#dfdfdf] border-t-black border-l-black' : ''
           }`}
+          title="Toggle WiseView-style automatic epoch blinking"
         >
-          {playing ? 'Stop' : 'Blink'}
+          {playing ? 'Stop Blink' : 'Start Blink'}
         </button>
 
         <button
+          type="button"
           onClick={() => onEpochChange(epoch < maxEpochs ? epoch + 1 : 1)}
-          className="border border-mono-800 hover:border-mono-600 px-2 py-0.5 rounded text-mono-300 hover:text-white transition"
+          className="win2k-btn h-[22px] px-2 text-[11px]"
+          title="Next Epoch"
         >
-          Next
+          Next &gt;
         </button>
 
-        <div className="flex items-center gap-1 ml-2 border border-mono-800 p-0.5 rounded">
+        <div className="flex items-center gap-0.5 ml-1">
           {Array.from({ length: maxEpochs }, (_, i) => i + 1).map(ep => (
             <button
               key={ep}
+              type="button"
               onClick={() => onEpochChange(ep)}
-              className={`px-2 py-0.5 rounded text-[11px] transition ${
-                epoch === ep ? 'bg-mono-100 text-mono-950 font-bold' : 'text-mono-400 hover:text-white'
+              className={`win2k-btn h-[22px] px-2 text-[11px] ${
+                epoch === ep ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
               }`}
             >
               E{ep}
@@ -72,39 +82,43 @@ export const BlinkBar: React.FC<BlinkProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-mono-500">Rate:</span>
+      {/* rate slider */}
+      <div className="flex items-center gap-1.5 border-l border-r border-[#808080] px-2">
+        <span>Blink Rate:</span>
         <input
           type="range"
           min="1"
           max="8"
           value={fps}
           onChange={e => onFpsChange(parseInt(e.target.value, 10))}
-          className="w-16 accent-mono-300"
+          className="w-20 accent-[#0a246a]"
         />
-        <span className="text-mono-300 w-10">{fps} fps</span>
+        <span className="w-10 font-mono text-[10px]">{fps} Hz</span>
       </div>
 
-      <div className="flex items-center gap-1 border border-mono-800 p-0.5 rounded">
-        <span className="text-mono-500 px-1">Stretch:</span>
+      {/* stretch mode */}
+      <div className="flex items-center gap-1">
+        <span>Stretch:</span>
         <button
+          type="button"
           onClick={() => onStretchChange(stretch === 'asinh' ? 'linear' : 'asinh')}
-          className="px-2 py-0.5 rounded text-[11px] bg-mono-800 text-mono-200 hover:text-white"
+          className="win2k-btn h-[22px] px-2 text-[11px]"
         >
-          {stretch === 'asinh' ? 'Asinh' : 'Linear'}
+          {stretch === 'asinh' ? 'Asinh (Nonlinear)' : 'Linear'}
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* difference mode */}
+      <div className="flex items-center gap-1">
         <button
+          type="button"
           onClick={onToggleDiff}
-          className={`border px-2.5 py-0.5 rounded transition ${
-            diffMode
-              ? 'bg-mono-100 text-mono-950 font-bold border-mono-100'
-              : 'border-mono-800 text-mono-300 hover:border-mono-600'
+          className={`win2k-btn h-[22px] px-2 text-[11px] ${
+            diffMode ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
           }`}
+          title="Signed Difference Image for Motion Dipole Detection"
         >
-          {diffMode ? 'Diff: Active' : 'Difference'}
+          {diffMode ? 'Difference: Active' : 'Difference'}
         </button>
 
         {diffMode && (
@@ -114,12 +128,12 @@ export const BlinkBar: React.FC<BlinkProps> = ({
               const [a, b] = e.target.value.split('-').map(Number);
               onDiffPairChange([a, b]);
             }}
-            className="bg-mono-900 border border-mono-700 px-1 py-0.5 text-mono-200 text-xs rounded"
+            className="win2k-input text-[11px] h-[22px]"
           >
-            <option value="1-2">E2 - E1</option>
-            <option value="1-3">E3 - E1</option>
-            <option value="1-4">E4 - E1</option>
-            <option value="2-3">E3 - E2</option>
+            <option value="1-2">Epoch 2 - Epoch 1</option>
+            <option value="1-3">Epoch 3 - Epoch 1</option>
+            <option value="1-4">Epoch 4 - Epoch 1</option>
+            <option value="2-3">Epoch 3 - Epoch 2</option>
           </select>
         )}
       </div>

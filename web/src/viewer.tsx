@@ -14,11 +14,18 @@ interface ViewerProps {
   mode: ViewerMode;
   savePngTrigger: number;
   targetLabel?: string;
+  diffPair?: [number, number];
+  playing?: boolean;
+  fps?: number;
+  showReticle?: boolean;
+  onEpochChange?: (ep: number) => void;
   onFovChange: (fov: number) => void;
   onSourceClick: (px: number, py: number) => void;
+  onHover?: (hover: CursorHover) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-interface CursorHover {
+export interface CursorHover {
   visible: boolean;
   screenX: number;
   screenY: number;
@@ -84,6 +91,15 @@ function createColormapLut(type: ColormapType): Uint8Array {
       [0.8, 251, 155, 38],
       [1.0, 122, 4, 3]
     ];
+  } else if (type === 'bipolar') {
+    // dark cosmic difference: zero difference is dark space void, negative is electric cyan, positive is fiery orange
+    stops = [
+      [0.0, 0, 220, 255],
+      [0.25, 0, 80, 180],
+      [0.5, 10, 12, 16],
+      [0.75, 200, 60, 10],
+      [1.0, 255, 160, 20]
+    ];
   } else if (type === 'coolwarm') {
     stops = [
       [0.0, 59, 76, 192],
@@ -126,44 +142,51 @@ export const Viewer: React.FC<ViewerProps> = ({
   ra,
   dec,
   fov,
+  epoch,
   band,
   colormap,
   transfer,
   measureMode,
   mode,
   savePngTrigger,
-  onSourceClick
+  diffPair = [1, 2],
+  playing = false,
+  fps = 4,
+  showReticle = true,
+  onEpochChange,
+  onSourceClick,
+  onHover,
+  onLoadingChange
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const colorbarRef = useRef<HTMLCanvasElement>(null);
 
   // offscreen canvas caches for 60fps blink toggling
-  const offscreenRef1 = useRef<HTMLCanvasElement | null>(null);
-  const offscreenRef2 = useRef<HTMLCanvasElement | null>(null);
+  const offscreenEpochsRef = useRef<Record<number, HTMLCanvasElement>>({});
   const offscreenRefDiff = useRef<HTMLCanvasElement | null>(null);
+  const loadIdRef = useRef<number>(0);
 
-  const [loading, setLoading] = useState(false);
+  const setLoading = useCallback((l: boolean) => {
+    if (onLoadingChange) onLoadingChange(l);
+  }, [onLoadingChange]);
+
   const [hasSphereX, setHasSphereX] = useState(true);
   const [sourceType, setSourceType] = useState('spherex');
   const [bunit, setBunit] = useState('MJy/sr');
 
   // data stores for multi-epoch frames
-  const [dataEpoch1, setDataEpoch1] = useState<PixelResponse | null>(null);
-  const [dataEpoch2, setDataEpoch2] = useState<PixelResponse | null>(null);
+  const [epochMap, setEpochMap] = useState<Record<number, PixelResponse>>({});
   const [dataDiff, setDataDiff] = useState<PixelResponse | null>(null);
 
   // display cuts
   const [cutLow, setCutLow] = useState<number>(0);
   const [cutHigh, setCutHigh] = useState<number>(1);
-
-  // single mode active epoch selection
-  const [selectedEpoch, setSelectedEpoch] = useState<number>(1);
+  const [bufferVersion, setBufferVersion] = useState<number>(0);
 
   // blink comparator state
-  const [blinkEpoch, setBlinkEpoch] = useState<number>(1);
-  const [isBlinking, setIsBlinking] = useState<boolean>(true);
-  const [blinkSpeed, setBlinkSpeed] = useState<number>(4);
+  const [blinkEpoch, setBlinkEpoch] = useState<number>(epoch || 1);
+  const blinkSpeed = fps || 4;
 
   // camera viewport transform
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -193,20 +216,25 @@ export const Viewer: React.FC<ViewerProps> = ({
     bunit: 'MJy/sr'
   });
 
-  // effective colormap: default coolwarm in diff mode for symmetric dipole visibility
+  // effective colormap: default bipolar (dark cosmic space) in diff mode for symmetric dipole visibility
   const effectiveColormap = useMemo(() => {
-    if (mode === 'diff' && colormap === 'viridis') return 'coolwarm';
+    if (mode === 'diff' && colormap === 'viridis') return 'bipolar';
     return colormap;
   }, [mode, colormap]);
 
   const activeLut = useMemo(() => createColormapLut(effectiveColormap), [effectiveColormap]);
 
+  // sync internal blink epoch when epoch prop changes
+  useEffect(() => {
+    setBlinkEpoch(epoch);
+  }, [epoch]);
+
   // active pixel response based on mode
   const currentPixelData = useMemo(() => {
     if (mode === 'diff') return dataDiff;
-    if (mode === 'blink') return blinkEpoch === 1 ? dataEpoch1 : dataEpoch2;
-    return selectedEpoch === 1 ? dataEpoch1 : dataEpoch2;
-  }, [mode, selectedEpoch, blinkEpoch, dataEpoch1, dataEpoch2, dataDiff]);
+    const activeEp = mode === 'blink' ? blinkEpoch : epoch;
+    return epochMap[activeEp] || epochMap[1] || null;
+  }, [mode, epoch, blinkEpoch, epochMap, dataDiff]);
 
   // trigger save png
   useEffect(() => {
@@ -218,43 +246,59 @@ export const Viewer: React.FC<ViewerProps> = ({
     }
   }, [savePngTrigger, ra, dec, mode]);
 
-  // blink comparator timer
+  // blink comparator timer (cycles 1..4)
   useEffect(() => {
-    if (mode !== 'blink' || !isBlinking) return;
-    const intervalMs = Math.round(1000 / blinkSpeed);
+    if (mode !== 'blink' || !playing) return;
+    const speed = blinkSpeed || fps || 4;
+    const intervalMs = Math.round(1000 / Math.max(1, speed));
     const timer = setInterval(() => {
-      setBlinkEpoch(prev => (prev === 1 ? 2 : 1));
+      setBlinkEpoch(prev => {
+        const next = prev >= 4 ? 1 : prev + 1;
+        if (onEpochChange) onEpochChange(next);
+        return next;
+      });
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [mode, isBlinking, blinkSpeed]);
+  }, [mode, playing, blinkSpeed, fps, onEpochChange]);
 
-  // data fetching: loads epoch 1, epoch 2, and diff
+  // data fetching: loads epochs 1..4 in parallel or diff
   useEffect(() => {
-    let cancelled = false;
+    const currentId = ++loadIdRef.current;
 
     async function loadAll() {
       setLoading(true);
       try {
         if (mode === 'diff') {
-          const diffRes = await fetchDiff(ra, dec, 1, 2, band, fov, 'signed');
-          if (cancelled) return;
+          const diffRes = await fetchDiff(ra, dec, diffPair[0], diffPair[1], band, fov, 'signed');
+          if (currentId !== loadIdRef.current) return;
           setDataDiff(diffRes);
           setHasSphereX(diffRes.hasSphereX);
           setSourceType(diffRes.source);
           setBunit(diffRes.bunit);
 
-          // symmetric zscale cut around zero for signed dipole residuals
-          const absVals: number[] = [];
+          // robust astronomical cut for difference mode
+          const vals: number[] = [];
           const step = Math.max(1, Math.floor(diffRes.pixels.length / 50000));
           for (let i = 0; i < diffRes.pixels.length; i += step) {
             const v = diffRes.pixels[i];
-            if (!isNaN(v) && isFinite(v)) absVals.push(Math.abs(v));
+            if (!isNaN(v) && isFinite(v)) vals.push(v);
           }
-          absVals.sort((a, b) => a - b);
-          const p99 = absVals[Math.floor(absVals.length * 0.99)] || 1;
-          const safeMax = Math.max(0.5, p99);
-          setCutLow(-safeMax);
-          setCutHigh(safeMax);
+          vals.sort((a, b) => a - b);
+          const n = vals.length;
+          if (n > 0) {
+            const p16 = vals[Math.floor(n * 0.16)] || -1;
+            const p84 = vals[Math.floor(n * 0.84)] || 1;
+            const sigma = Math.max(0.05, (p84 - p16) / 2);
+            const maxAbs = Math.max(Math.abs(vals[0] || 0), Math.abs(vals[n - 1] || 0));
+            // display cut: keep 4*sigma within central neutral grey zone
+            // and scale to source peak so real dipoles show smooth PSF gradients
+            const cut = Math.max(sigma * 4, Math.min(maxAbs, Math.max(sigma * 8, maxAbs * 0.4)));
+            setCutLow(-cut);
+            setCutHigh(cut);
+          } else {
+            setCutLow(-1);
+            setCutHigh(1);
+          }
 
           // center viewport based on actual image dimensions
           if (containerRef.current) {
@@ -270,15 +314,17 @@ export const Viewer: React.FC<ViewerProps> = ({
             });
           }
         } else {
-          // fetch epoch 1 and epoch 2 in parallel for instant blinking
-          const [e1Res, e2Res] = await Promise.all([
-            fetchPixels(ra, dec, 1, band, fov, false),
-            fetchPixels(ra, dec, 2, band, fov, false)
-          ]);
-          if (cancelled) return;
+          // fetch epochs 1 through 4 in parallel for instant 60fps blinking
+          const responses = await Promise.all([1, 2, 3, 4].map(ep => fetchPixels(ra, dec, ep, band, fov, false)));
+          if (currentId !== loadIdRef.current) return;
 
-          setDataEpoch1(e1Res);
-          setDataEpoch2(e2Res);
+          const map: Record<number, PixelResponse> = {};
+          responses.forEach((res, i) => {
+            map[i + 1] = res;
+          });
+          setEpochMap(map);
+
+          const e1Res = responses[0];
           setHasSphereX(e1Res.hasSphereX);
           setSourceType(e1Res.source);
           setBunit(e1Res.bunit);
@@ -296,15 +342,14 @@ export const Viewer: React.FC<ViewerProps> = ({
             const p50 = valid[Math.floor(valid.length * 0.50)];
             const p99_5 = valid[Math.floor(valid.length * 0.995)];
             setCutLow(p1);
-            // ensure contrast range so flat diffuse background doesn't turn into chunky noise
-            const minHigh = p50 + Math.max(0.6, (p99_5 - p50));
-            setCutHigh(Math.max(minHigh, p99_5));
+            // astronomical 99.5th percentile cut avoids single saturated pixel crushing contrast
+            const minHigh = Math.max(p50 + 1.0, p99_5);
+            setCutHigh(minHigh);
           } else {
             setCutLow(0);
             setCutHigh(1);
           }
 
-          // center viewport based on actual image dimensions
           if (containerRef.current) {
             const cw = containerRef.current.clientWidth;
             const ch = containerRef.current.clientHeight;
@@ -321,15 +366,12 @@ export const Viewer: React.FC<ViewerProps> = ({
       } catch (err) {
         console.error('frame load error', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (currentId === loadIdRef.current) setLoading(false);
       }
     }
 
     loadAll();
-    return () => {
-      cancelled = true;
-    };
-  }, [ra, dec, fov, band, mode]);
+  }, [ra, dec, fov, band, mode, diffPair[0], diffPair[1]]);
 
   // offscreen canvas renderer for arbitrary float32 buffers
   const renderBuffer = useCallback(
@@ -350,16 +392,33 @@ export const Viewer: React.FC<ViewerProps> = ({
       const range = Math.max(1e-7, cutHigh - cutLow);
 
       // 1024-step transfer lut to avoid millions of transcendental calls
+      const isDiff = mode === 'diff';
       const transLut = new Uint8Array(1024);
       for (let i = 0; i < 1024; i++) {
         const norm = i / 1023;
         let scaled = norm;
-        if (transfer === 'asinh') {
-          scaled = Math.asinh(norm * 10) / Math.asinh(10);
-        } else if (transfer === 'log') {
-          scaled = Math.log(1 + norm * 9) / Math.log(10);
-        } else if (transfer === 'sqrt') {
-          scaled = Math.sqrt(norm);
+        if (isDiff) {
+          // symmetric signed stretch centered at 0.5 for dipoles
+          const centered = (norm - 0.5) * 2;
+          const sign = Math.sign(centered);
+          const mag = Math.abs(centered);
+          let scaledMag = mag;
+          if (transfer === 'asinh') {
+            scaledMag = Math.asinh(mag * 6) / Math.asinh(6);
+          } else if (transfer === 'log') {
+            scaledMag = Math.log(1 + mag * 9) / Math.log(10);
+          } else if (transfer === 'sqrt') {
+            scaledMag = Math.sqrt(mag);
+          }
+          scaled = 0.5 + 0.5 * sign * scaledMag;
+        } else {
+          if (transfer === 'asinh') {
+            scaled = Math.asinh(norm * 10) / Math.asinh(10);
+          } else if (transfer === 'log') {
+            scaled = Math.log(1 + norm * 9) / Math.log(10);
+          } else if (transfer === 'sqrt') {
+            scaled = Math.sqrt(norm);
+          }
         }
         transLut[i] = Math.min(255, Math.max(0, Math.round(scaled * 255)));
       }
@@ -393,22 +452,26 @@ export const Viewer: React.FC<ViewerProps> = ({
 
       ctx.putImageData(img, 0, 0);
     },
-    [cutLow, cutHigh, activeLut, transfer]
+    [cutLow, cutHigh, activeLut, transfer, mode]
   );
 
   // keep offscreen buffers updated
   useEffect(() => {
-    if (!offscreenRef1.current) offscreenRef1.current = document.createElement('canvas');
-    if (!offscreenRef2.current) offscreenRef2.current = document.createElement('canvas');
-    if (!offscreenRefDiff.current) offscreenRefDiff.current = document.createElement('canvas');
-
     if (mode === 'diff') {
+      if (!offscreenRefDiff.current) offscreenRefDiff.current = document.createElement('canvas');
       renderBuffer(dataDiff, offscreenRefDiff.current);
     } else {
-      renderBuffer(dataEpoch1, offscreenRef1.current);
-      renderBuffer(dataEpoch2, offscreenRef2.current);
+      [1, 2, 3, 4].forEach(ep => {
+        if (!offscreenEpochsRef.current[ep]) {
+          offscreenEpochsRef.current[ep] = document.createElement('canvas');
+        }
+        if (epochMap[ep]) {
+          renderBuffer(epochMap[ep], offscreenEpochsRef.current[ep]);
+        }
+      });
     }
-  }, [mode, dataDiff, dataEpoch1, dataEpoch2, renderBuffer]);
+    setBufferVersion(v => v + 1);
+  }, [mode, dataDiff, epochMap, renderBuffer]);
 
   // aperture photometry with concentric background sky annulus
   const calculateApertureStats = useCallback(
@@ -502,10 +565,9 @@ export const Viewer: React.FC<ViewerProps> = ({
     let offCanvas: HTMLCanvasElement | null = null;
     if (mode === 'diff') {
       offCanvas = offscreenRefDiff.current;
-    } else if (mode === 'blink') {
-      offCanvas = blinkEpoch === 1 ? offscreenRef1.current : offscreenRef2.current;
     } else {
-      offCanvas = selectedEpoch === 1 ? offscreenRef1.current : offscreenRef2.current;
+      const activeEp = mode === 'blink' ? blinkEpoch : epoch;
+      offCanvas = offscreenEpochsRef.current[activeEp] || offscreenEpochsRef.current[1] || null;
     }
 
     if (!offCanvas) return;
@@ -523,19 +585,42 @@ export const Viewer: React.FC<ViewerProps> = ({
     ctx.clearRect(0, 0, width, height);
 
     ctx.save();
-    ctx.imageSmoothingEnabled = zoom < 3;
+    ctx.imageSmoothingEnabled = false;
     ctx.translate(pan.x, pan.y);
     ctx.scale(zoom, zoom);
 
     // fast blit of pre-rendered detector frame
     ctx.drawImage(offCanvas, 0, 0);
 
-    // frame border
-    ctx.strokeStyle = '#27272a';
-    ctx.lineWidth = 1 / zoom;
+    // frame border (dashed blue on epoch 1 to mark loop restart, matching WiseView)
+    const isCycleStart = mode === 'blink' && blinkEpoch === 1;
+    ctx.strokeStyle = isCycleStart ? '#60a5fa' : '#27272a';
+    ctx.lineWidth = isCycleStart ? 2 / zoom : 1 / zoom;
+    if (isCycleStart) {
+      ctx.setLineDash([4 / zoom, 4 / zoom]);
+    } else {
+      ctx.setLineDash([]);
+    }
     ctx.strokeRect(0, 0, currentPixelData.width, currentPixelData.height);
 
     ctx.restore();
+
+    // WiseView target crosshair / reticle
+    if (showReticle && currentPixelData && (!aperture || aperture.rAper <= 0)) {
+      const tcx = pan.x + (currentPixelData.width / 2) * zoom;
+      const tcy = pan.y + (currentPixelData.height / 2) * zoom;
+      ctx.save();
+      ctx.strokeStyle = '#22c55e'; // classic WiseView green reticle
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(tcx, tcy, 12, 0, Math.PI * 2);
+      ctx.moveTo(tcx - 18, tcy); ctx.lineTo(tcx - 13, tcy);
+      ctx.moveTo(tcx + 13, tcy); ctx.lineTo(tcx + 18, tcy);
+      ctx.moveTo(tcx, tcy - 18); ctx.lineTo(tcx, tcy - 13);
+      ctx.moveTo(tcx, tcy + 13); ctx.lineTo(tcx, tcy + 18);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // render circular aperture with concentric sky background annulus
     if (aperture && aperture.rAper > 0) {
@@ -591,7 +676,7 @@ export const Viewer: React.FC<ViewerProps> = ({
       ctx.textBaseline = 'middle';
       ctx.fillText('[ NO SPHEREx OBSERVATION COVERAGE AT THESE COORDINATES ]', width / 2, height / 2);
     }
-  }, [pan, zoom, currentPixelData, mode, selectedEpoch, blinkEpoch, hasSphereX, sourceType, aperture]);
+  }, [pan, zoom, currentPixelData, mode, epoch, blinkEpoch, hasSphereX, sourceType, aperture, bufferVersion, showReticle]);
 
   // calibrated vertical colorbar
   const drawColorbar = useCallback(() => {
@@ -715,7 +800,7 @@ export const Viewer: React.FC<ViewerProps> = ({
     if (curRa >= 360) curRa -= 360;
     const curDec = Math.atan2(Math.sin(dec0) + eta * Math.cos(dec0), Math.sqrt(xi * xi + denom * denom)) / rad;
 
-    setHover({
+    const newHover: CursorHover = {
       visible: true,
       screenX: e.clientX,
       screenY: e.clientY,
@@ -725,7 +810,9 @@ export const Viewer: React.FC<ViewerProps> = ({
       decDeg: curDec,
       val: Number(val.toFixed(3)),
       bunit
-    });
+    };
+    setHover(newHover);
+    if (onHover) onHover(newHover);
   };
 
   const handleMouseUp = () => {
@@ -771,10 +858,25 @@ export const Viewer: React.FC<ViewerProps> = ({
           setIsDragging(false);
           isMeasuringRef.current = false;
           setHover(prev => ({ ...prev, visible: false }));
+          if (onHover) onHover({ visible: false, screenX: 0, screenY: 0, pixelX: 0, pixelY: 0, raDeg: 0, decDeg: 0, val: 0, bunit: '' });
         }}
-        onClick={() => {
-          if (!measureMode && hover.visible && !isDragging) {
-            onSourceClick(hover.pixelX, hover.pixelY);
+        onClick={(e) => {
+          if (!measureMode && !isDragging) {
+            const container = containerRef.current;
+            if (container && currentPixelData) {
+              const rect = container.getBoundingClientRect();
+              const screenX = e.clientX - rect.left;
+              const screenY = e.clientY - rect.top;
+              const imgX = Math.floor((screenX - pan.x) / zoom);
+              const imgY = Math.floor((screenY - pan.y) / zoom);
+              if (imgX >= 0 && imgX < currentPixelData.width && imgY >= 0 && imgY < currentPixelData.height) {
+                onSourceClick(imgX, imgY);
+                return;
+              }
+            }
+            if (hover.visible) {
+              onSourceClick(hover.pixelX, hover.pixelY);
+            }
           }
         }}
         className={`w-full h-full block ${
@@ -782,160 +884,63 @@ export const Viewer: React.FC<ViewerProps> = ({
         }`}
       />
 
-      {/* single mode epoch selector */}
-      {mode === 'single' && (
-        <div className="absolute top-3 right-3 z-30 bg-mono-950/95 border border-mono-800 px-2.5 py-1 text-xs text-mono-200 flex items-center gap-2 shadow-xl rounded">
-          <span className="text-mono-400">Epoch:</span>
-          <div className="flex items-center border border-mono-700 rounded overflow-hidden">
-            {[1, 2].map(ep => (
-              <button
-                key={ep}
-                onClick={() => setSelectedEpoch(ep)}
-                className={`px-2 py-0.5 text-xs ${
-                  selectedEpoch === ep
-                    ? 'bg-mono-200 text-mono-950 font-bold'
-                    : 'text-mono-400 hover:text-white bg-mono-900'
-                }`}
-              >
-                Epoch {ep}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* blink mode controls */}
-      {mode === 'blink' && (
-        <div className="absolute top-3 right-3 z-30 bg-mono-950/95 border border-mono-800 px-2.5 py-1 text-xs text-mono-200 flex items-center gap-2 shadow-xl rounded">
-          <span className="text-white font-bold">Blink:</span>
-          <button
-            onClick={() => setIsBlinking(b => !b)}
-            className="px-2 py-0.5 rounded border border-mono-700 hover:border-mono-400 text-mono-200 text-xs"
-          >
-            {isBlinking ? 'Pause' : 'Play'}
-          </button>
-          <div className="flex items-center border border-mono-700 rounded overflow-hidden">
-            {[1, 2, 4, 8].map(hz => (
-              <button
-                key={hz}
-                onClick={() => setBlinkSpeed(hz)}
-                className={`px-1.5 py-0.5 text-[11px] ${
-                  blinkSpeed === hz
-                    ? 'bg-mono-200 text-mono-950 font-bold'
-                    : 'text-mono-400 hover:text-white bg-mono-900'
-                }`}
-              >
-                {hz}Hz
-              </button>
-            ))}
-          </div>
-          <span
-            className={`px-2 py-0.5 rounded text-xs font-bold ${
-              blinkEpoch === 1
-                ? 'bg-blue-950 text-blue-300 border border-blue-700'
-                : 'bg-amber-950 text-amber-300 border border-amber-700'
-            }`}
-          >
-            Epoch {blinkEpoch}
-          </span>
-        </div>
-      )}
-
-      {/* difference mode indicator */}
-      {mode === 'diff' && (
-        <div className="absolute top-3 right-3 z-30 bg-mono-950/95 border border-mono-800 px-2.5 py-1 text-xs text-mono-200 flex items-center gap-2 shadow-xl rounded">
-          <span className="text-mono-400">Mode:</span>
-          <span className="text-white font-bold">Signed Difference (Epoch 2 - Epoch 1)</span>
-        </div>
-      )}
-
-      {/* calibrated vertical colorbar */}
-      {currentPixelData && (
-        <div className="absolute right-3 top-16 bottom-12 flex items-center gap-1.5 pointer-events-none select-none text-[9px] font-mono z-20">
-          <canvas
-            ref={colorbarRef}
-            width={16}
-            height={200}
-            className="border border-mono-800 shadow-xl"
-          />
-          <div className="h-[200px] flex flex-col justify-between text-mono-300 py-0.5">
-            <div>
-              {cutHigh.toFixed(2)} <span className="text-[8px] text-mono-500">{bunit}</span>
-            </div>
-            <div>{(cutLow + (cutHigh - cutLow) * 0.75).toFixed(2)}</div>
-            <div>{(cutLow + (cutHigh - cutLow) * 0.5).toFixed(2)}</div>
-            <div>{(cutLow + (cutHigh - cutLow) * 0.25).toFixed(2)}</div>
-            <div>{cutLow.toFixed(2)}</div>
-          </div>
-        </div>
-      )}
-
-      {/* concentric sky annulus aperture photometry HUD */}
-      {measureMode && aperture && (
-        <div className="absolute top-3 left-3 z-30 bg-mono-950/95 border border-yellow-500/70 px-3 py-2 text-xs text-mono-200 flex flex-col gap-1 shadow-2xl rounded max-w-md">
-          <div className="flex items-center justify-between border-b border-mono-800 pb-1">
-            <span className="text-yellow-400 font-bold">Aperture Photometry (Sky Subtracted)</span>
+      {/* authentic windows 2000 tool window for aperture photometry */}
+      {measureMode && aperture && aperture.rAper > 0 && (
+        <div className="win2k-window absolute top-2 left-2 z-30 shadow-md w-72 text-black font-sans text-[11px]">
+          <div className="win2k-titlebar flex items-center justify-between !py-0.5 !px-1">
+            <span className="font-bold text-[10px]">Aperture Photometry</span>
             <button
+              type="button"
               onClick={() => setAperture(null)}
-              className="text-mono-400 hover:text-white border border-mono-700 hover:border-mono-400 px-1.5 py-0.2 rounded text-[10px]"
+              className="win2k-title-btn !h-3.5 !w-3.5 !leading-3 text-[10px]"
             >
-              Clear
+              ×
             </button>
           </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            <span>r_aper: <span className="text-white font-bold">{aperture.rAper.toFixed(1)} px</span> ({aperture.aperPixels} px)</span>
-            <span>sky: <span className="text-sky-300 font-bold">{aperture.rIn.toFixed(1)} - {aperture.rOut.toFixed(1)} px</span> ({aperture.annPixels} px)</span>
-          </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            <span>Net Flux: <span className="text-white font-bold">{aperture.netFlux.toFixed(3)}</span> {bunit}</span>
-            <span>Flux Density: <span className="text-green-400 font-bold">{aperture.fluxMjy.toFixed(2)} mJy</span></span>
-          </div>
-          <div className="flex items-center gap-3 text-[11px] text-mono-400">
-            <span>Sky Bkg: {aperture.skyMedian.toFixed(3)} &plusmn; {aperture.skyStd.toFixed(3)}</span>
-            <span>SNR: <span className="text-yellow-300 font-bold">{aperture.snr.toFixed(1)}</span></span>
+          <div className="p-1.5 space-y-1 bg-[#d4d0c8]">
+            <div className="flex justify-between border-b border-[#808080] pb-0.5">
+              <span>Aperture Radius:</span>
+              <span className="font-bold font-mono">{aperture.rAper.toFixed(1)} px ({aperture.aperPixels} px)</span>
+            </div>
+            <div className="flex justify-between border-b border-[#808080] pb-0.5">
+              <span>Sky Annulus:</span>
+              <span className="font-bold font-mono">{aperture.rIn.toFixed(1)} - {aperture.rOut.toFixed(1)} px</span>
+            </div>
+            <div className="flex justify-between border-b border-[#808080] pb-0.5">
+              <span>Net Flux:</span>
+              <span className="font-bold font-mono">{aperture.netFlux.toFixed(3)} {bunit}</span>
+            </div>
+            <div className="flex justify-between border-b border-[#808080] pb-0.5">
+              <span>Flux Density:</span>
+              <span className="font-bold font-mono">{aperture.fluxMjy.toFixed(2)} mJy</span>
+            </div>
+            <div className="flex justify-between border-b border-[#808080] pb-0.5">
+              <span>Sky Background:</span>
+              <span className="font-mono">{aperture.skyMedian.toFixed(3)} &plusmn; {aperture.skyStd.toFixed(3)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Signal-to-Noise:</span>
+              <span className="font-bold font-mono">{aperture.snr.toFixed(1)}</span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* bottom status line */}
-      <footer className="absolute bottom-0 left-0 right-0 h-6 bg-mono-950/95 border-t border-mono-800 px-3 flex items-center justify-between text-[11px] text-mono-400 z-30 select-none">
-        <div>
-          {hover.visible ? (
-            <span>
-              RA: <span className="text-white">{hover.raDeg.toFixed(4)}&deg;</span> DEC:{' '}
-              <span className="text-white">{hover.decDeg.toFixed(4)}&deg;</span> &bull; Pixel [{hover.pixelX}, {hover.pixelY}] &bull; Flux:{' '}
-              <span className="text-white font-bold">{hover.val}</span> {hover.bunit}
-            </span>
-          ) : (
-            <span>Click any source to extract 102-channel NIR spectrum &bull; Drag to pan &bull; Wheel to zoom</span>
-          )}
+      {/* authentic windows 2000 sunken vertical colorbar */}
+      {currentPixelData && (
+        <div className="absolute right-2 top-2 bottom-2 z-20 flex items-center gap-1 select-none pointer-events-none text-[10px] font-sans text-white">
+          <div className="win2k-sunken p-[1px] bg-black">
+            <canvas ref={colorbarRef} width={14} height={180} className="block" />
+          </div>
+          <div className="h-[180px] flex flex-col justify-between font-mono text-[9px] text-white py-0.5 drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+            <div>{cutHigh.toFixed(1)} <span className="text-[8px] text-neutral-300">{bunit}</span></div>
+            <div>{(cutLow + (cutHigh - cutLow) * 0.75).toFixed(1)}</div>
+            <div>{(cutLow + (cutHigh - cutLow) * 0.5).toFixed(1)}</div>
+            <div>{(cutLow + (cutHigh - cutLow) * 0.25).toFixed(1)}</div>
+            <div>{cutLow.toFixed(1)}</div>
+          </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          {sourceType === 'spherex' ? (
-            <span className="text-emerald-400 font-bold text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800">
-              SPHEREx QR2 (ZODI SUBTRACTED)
-            </span>
-          ) : sourceType === 'allwise' ? (
-            <span className="text-amber-400 font-bold text-[10px] px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800">
-              ALLWISE PRECURSOR
-            </span>
-          ) : (
-            <span className="text-red-400 font-bold text-[10px] px-1.5 py-0.5 rounded bg-red-950/60 border border-red-800">
-              NO SURVEY COVERAGE
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {loading && <span className="text-mono-300 animate-pulse">loading...</span>}
-          <span>Zoom: <span className="text-white font-bold">{Math.round(zoom * 100)}%</span></span>
-          <span className="text-mono-600">|</span>
-          <span className="text-mono-400">
-            {currentPixelData ? `${currentPixelData.width}x${currentPixelData.height}` : '---'}
-          </span>
-        </div>
-      </footer>
+      )}
     </div>
   );
 };

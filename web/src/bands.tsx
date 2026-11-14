@@ -19,10 +19,11 @@ export const BandsBar: React.FC<BandsProps> = ({
   const current = bands[activeBand - 1] || { wavelength: 1.5, array: 2 };
 
   return (
-    <div className="bg-mono-950 border-t border-mono-850 px-3 py-1.5 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-      <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-        <span className="text-mono-500">Band:</span>
-        <span className="text-mono-200 font-bold w-16">{activeBand}/102</span>
+    <div className="bg-[#d4d0c8] border-t border-[#808080] p-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-sans text-black select-none">
+      {/* 102-channel linear variable filter slider */}
+      <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+        <span className="font-bold">LVF Band:</span>
+        <span className="font-mono font-bold w-12">{activeBand}/102</span>
 
         <input
           type="range"
@@ -33,24 +34,25 @@ export const BandsBar: React.FC<BandsProps> = ({
             onStackChange(null);
             onBandChange(parseInt(e.target.value, 10));
           }}
-          className="flex-1 accent-mono-300"
+          className="flex-1 accent-[#0a246a]"
         />
 
-        <span className="text-mono-300">{current.wavelength.toFixed(3)} µm</span>
-        <span className="text-mono-500 text-[11px]">(Array {current.array})</span>
+        <span className="font-mono font-bold w-20">{current.wavelength.toFixed(3)} µm</span>
+        <span className="text-neutral-700">(Array {current.array})</span>
       </div>
 
-      <div className="flex items-center gap-1 border border-mono-800 p-0.5 rounded">
-        <span className="text-mono-500 px-1 text-[11px]">Stack:</span>
+      {/* detector array coadd stacking */}
+      <div className="flex items-center gap-1 border-l border-[#808080] pl-2">
+        <span className="text-neutral-700">Coadd Array:</span>
         {[1, 2, 3, 4, 5, 6].map(arr => (
           <button
             key={arr}
+            type="button"
             onClick={() => onStackChange(stackedArray === arr ? null : arr)}
-            className={`px-1.5 py-0.5 rounded text-[11px] transition ${
-              stackedArray === arr
-                ? 'bg-mono-100 text-mono-950 font-bold'
-                : 'text-mono-400 hover:text-white'
+            className={`win2k-btn h-[22px] px-1.5 text-[10px] ${
+              stackedArray === arr ? 'font-bold !bg-[#dfdfdf] border-t-black border-l-black' : ''
             }`}
+            title={`Coadd all spectral channels in Detector Array ${arr} to boost SNR`}
           >
             A{arr}
           </button>

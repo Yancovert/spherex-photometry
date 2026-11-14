@@ -16,13 +16,32 @@
 
 body {
   margin: 0;
-  padding: 8px;
-  background-color: #3a6ea5; /* classic windows 2000 teal desktop background */
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #d4d0c8;
   color: var(--win-text);
-  font-family: 'Tahoma', 'MS Sans Serif', 'Segoe UI', Arial, sans-serif;
+  font-family: 'Tahoma', 'MS Sans Serif', Arial, sans-serif;
   font-size: 11px;
   line-height: 1.3;
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.win2k-desktop {
+  background-color: var(--win-bg);
+  color: var(--win-text);
+  font-family: 'Tahoma', 'MS Sans Serif', Arial, sans-serif;
+  font-size: 11px;
+  padding: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* windows 2000 outer window frame */
