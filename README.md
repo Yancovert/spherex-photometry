@@ -10,12 +10,13 @@ runs with an authentic early 2000s windows win32 interface (no modern web bloat,
 
 team logo designed by [Freund0815](https://freund.vercel.app/).
 
-## live demos
+## live demos & documentation
 
 - web app (vercel): https://spherex-photometry.vercel.app
 - web app (github pages): https://yancovert.github.io/spherex-photometry/
 - hugging face space: https://huggingface.co/spaces/Yancovert/spherex-photometry
 - presentation slides: https://docs.google.com/presentation/d/1bwh-MxHggYTX9QoibypMloLwP0N4JB7I9QtaO0hb-KA/edit?usp=sharing
+- research paper: [paper/spherex_research_paper.md](paper/spherex_research_paper.md)
 
 ## what it does
 
