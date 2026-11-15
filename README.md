@@ -15,6 +15,7 @@ team logo designed by [Freund0815](https://freund.vercel.app/).
 - web app (vercel): https://spherex-photometry.vercel.app
 - web app (github pages): https://yancovert.github.io/spherex-photometry/
 - hugging face space: https://huggingface.co/spaces/Yancovert/spherex-photometry
+- presentation slides: https://docs.google.com/presentation/d/1bwh-MxHggYTX9QoibypMloLwP0N4JB7I9QtaO0hb-KA/edit?usp=sharing
 
 ## what it does
 
